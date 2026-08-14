@@ -13,7 +13,7 @@ jobs:
       - name: Update source
         run: |
           set -e
-          cd /home/it/auto_alert_BI51_wecom
+          cd /home/it/auto_alert_bi51_wecom
           git fetch origin
           git reset --hard origin/master
           chmod +x *.sh
