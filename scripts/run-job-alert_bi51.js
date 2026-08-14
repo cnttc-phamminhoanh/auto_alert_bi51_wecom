@@ -32,6 +32,9 @@ const { sendJobFailureCard } = require("../services/wecom.service");
       runTime
     );
 
+    const mentioned_users = process.env.ALERT_BI_51_WECOM_USERS || ""
+    const mentionedUsers = mentioned_users .split(",").map(x => x.trim()).filter(Boolean)
+
     // Job không có history
     if (history.length === 0) {
       await sendJobFailureCard({
@@ -39,7 +42,9 @@ const { sendJobFailureCard } = require("../services/wecom.service");
         jobName: process.env.ALERT_BI_51_JOB_NAME,
         failureTime: `${runDate} ${runTime}`,
         status: "NOT EXECUTED",
-        errorDescription: "IG Bundle Abnormal Hour Gap has not been executed. Please check!"
+        errorDescription: "IG Bundle Abnormal Hour Gap has not been executed. Please check!",
+        mentionedUsers,
+        webhook: process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN || "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a446d827-927d-42cd-9c1b-766c9fa6b25a"
       });
 
       return;
@@ -54,7 +59,8 @@ const { sendJobFailureCard } = require("../services/wecom.service");
         jobName: process.env.ALERT_BI_51_JOB_NAME,
         failureTime: `${runDate} ${runTime}`,
         status: "FAILED",
-        errorDescription: job.message || "IG Bundle Abnormal Hour Gap has failed. Please check!"
+        errorDescription: job.message || "IG Bundle Abnormal Hour Gap has failed. Please check!",
+        mentionedUsers
       });
 
       return;

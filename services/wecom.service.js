@@ -1,14 +1,26 @@
 const axios = require("axios");
 
+async function sendMentionMessage(users, webhook) {
+  const { data: result } = await axios.post(webhook, {
+    msgtype: "text",
+    text: {
+      content: "🚨 LƯU Ý / NOTE / 注意",
+      mentioned_list: users,
+    },
+  });
+
+  return result
+}
+
 async function sendJobFailureCard({
   biName,
   jobName,
   failureTime,
   status = "FAILED",
-  errorDescription
+  errorDescription,
+  mentionedUsers = [],
+  webhook
 }) {
-  const webhook = process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN;
-
   const message = `
 # 🚨 SQL Job Execution Failure
 
@@ -33,6 +45,8 @@ async function sendJobFailureCard({
   if (result.errcode !== 0) {
     throw new Error(result.errmsg);
   }
+
+  await sendMentionMessage(mentionedUsers, webhook);
 
   return result;
 }

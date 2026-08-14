@@ -21,9 +21,6 @@ async function getJobHistory(name, date, time) {
         AND (h.run_time / 100) = @time
       ORDER BY h.run_time DESC
     `);
-  
-  console.log('qưe', date, time, name)
-  console.log('JJJJ', result)
 
   return result.recordset;
 }
