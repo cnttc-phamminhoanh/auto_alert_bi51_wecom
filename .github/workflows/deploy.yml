@@ -20,5 +20,5 @@ jobs:
 
       - name: Install packages
         run: |
-          cd /home/it/auto_alert_BI51_wecom
+          cd /home/it/auto_alert_bi51_wecom
           /home/it/.nvm/versions/node/v22.18.0/bin/npm ci
