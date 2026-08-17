@@ -4,11 +4,14 @@ require("dotenv").config({
   path: path.join(__dirname, "../.env"),
   quiet: true
 });
+console.log('DEBUG webhook:', JSON.stringify(process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN));
 const { getJobHistory } = require("../repositories/report.repository")
 const { createReportFile } = require("../utils/report-file.util")
 const { closePool } = require("../config/database");
-const { sendJobFailureCard } = require("../services/wecom.service");
-
+const { getPool } = require('../config/database');
+const {  sendFlowStatsMessage,sendJobFailureCard,sendFileToWecom, sendWarningMentionMessage } = require("../services/wecom.service");
+const DataProcessor = require("../repositories/report.data");
+const ExcelGenerator = require("../flow-excel-report/excel.generator");
 (async () => {
   const jobName = process.argv[2];
 
@@ -65,8 +68,28 @@ const { sendJobFailureCard } = require("../services/wecom.service");
 
       return;
     }
+ // Lấy pool DÙNG CHUNG cho toàn bộ phần dưới
+    const pool = await getPool();
+    const webhookUrl = process.env.ALERT_BI_51_WECOM_WEBHOOK;
 
-    console.log(`[${new Date().toISOString()}] [JOB] ${jobName} === COMPLETED ===`)
+    // 1. Gửi tin nhắn thống kê WeCom
+    const wecomSuccess = await sendFlowStatsMessage(webhookUrl, pool);
+    if (!wecomSuccess) {
+      console.error(`[${new Date().toISOString()}] [JOB] ${jobName}: Gửi thống kê WeCom thất bại`);
+    }
+
+    // 2. Tạo file Excel report
+    const excelData = await DataProcessor.getWarningData(pool);
+    const excelFilePath = await ExcelGenerator.generateExcel(excelData);
+    console.log(`[${new Date().toISOString()}] [JOB] ${jobName}: Đã tạo Excel tại ${excelFilePath}`);
+
+    // 3. Gửi file Excel lên WeCom
+    await sendFileToWecom(webhookUrl, excelFilePath);
+
+    // 4. Gửi tin nhắn tag người liên quan cảnh báo
+    await sendWarningMentionMessage(webhookUrl, pool);
+
+    console.log(`[${new Date().toISOString()}] [JOB] ${jobName} === COMPLETED ===`);
   } catch (err) {
     console.error(`[${new Date().toISOString()}] [JOB] ${jobName} === FAILED ===`, err);
     process.exit(1);
