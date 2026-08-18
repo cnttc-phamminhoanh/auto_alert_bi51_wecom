@@ -47,6 +47,7 @@ const { sendJobFailureCard } = require("../services/wecom.service");
         webhook: process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN || "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a446d827-927d-42cd-9c1b-766c9fa6b25a"
       });
 
+      console.log(`[${new Date().toISOString()}] [JOB] ${jobName} Sending ... NOT EXECUTED message`)
       return;
     }
 
@@ -60,9 +61,11 @@ const { sendJobFailureCard } = require("../services/wecom.service");
         failureTime: `${runDate} ${runTime}`,
         status: "FAILED",
         errorDescription: job.message || "IG Bundle Abnormal Hour Gap has failed. Please check!",
-        mentionedUsers
+        mentionedUsers,
+        webhook: process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN || "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a446d827-927d-42cd-9c1b-766c9fa6b25a"
       });
 
+      console.log(`[${new Date().toISOString()}] [JOB] ${jobName} Sending ... FAILED message`)
       return;
     }
 
