@@ -4,14 +4,11 @@ require("dotenv").config({
   path: path.join(__dirname, "../.env"),
   quiet: true
 });
-console.log('DEBUG webhook:', JSON.stringify(process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN));
-const { getJobHistory } = require("../repositories/report.repository")
-const { createReportFile } = require("../utils/report-file.util")
+const { getJobHistory, getWarningData } = require("../repositories/report.repository")
 const { closePool } = require("../config/database");
-const { getPool } = require('../config/database');
-const {  sendFlowStatsMessage,sendJobFailureCard,sendFileToWecom, sendWarningMentionMessage } = require("../services/wecom.service");
-const DataProcessor = require("../repositories/report.data");
-const ExcelGenerator = require("../flow-excel-report/excel.generator");
+const {  sendFlowStatsMessage, sendJobFailureCard, sendFileToWecom, sendWarningMentionMessage } = require("../services/wecom.service");
+const { generateExcel } = require("../services/excel.service");
+
 (async () => {
   const jobName = process.argv[2];
 
@@ -27,7 +24,6 @@ const ExcelGenerator = require("../flow-excel-report/excel.generator");
     now.setMinutes(now.getMinutes() - 2);
     const runDate = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
     const runTime = now.getHours() * 100 + now.getMinutes();
-    
 
     const history = await getJobHistory(
       process.env.ALERT_BI_51_JOB_NAME,
@@ -47,7 +43,7 @@ const ExcelGenerator = require("../flow-excel-report/excel.generator");
         status: "NOT EXECUTED",
         errorDescription: "IG Bundle Abnormal Hour Gap has not been executed. Please check!",
         mentionedUsers,
-        webhook: process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN || "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a446d827-927d-42cd-9c1b-766c9fa6b25a"
+        webhook: process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN || process.env.ALERT_BI_51_WECOM_WEBHOOK_TEST
       });
 
       console.log(`[${new Date().toISOString()}] [JOB] ${jobName} Sending ... NOT EXECUTED message`)
@@ -65,32 +61,36 @@ const ExcelGenerator = require("../flow-excel-report/excel.generator");
         status: "FAILED",
         errorDescription: job.message || "IG Bundle Abnormal Hour Gap has failed. Please check!",
         mentionedUsers,
-        webhook: process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN || "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a446d827-927d-42cd-9c1b-766c9fa6b25a"
+        webhook: process.env.ALERT_BI_51_WECOM_WEBHOOK_4_COLUMN || process.env.ALERT_BI_51_WECOM_WEBHOOK_TEST
       });
 
       console.log(`[${new Date().toISOString()}] [JOB] ${jobName} Sending ... FAILED message`)
       return;
     }
- // Lấy pool DÙNG CHUNG cho toàn bộ phần dưới
-    const pool = await getPool();
+
+    // Xử lý data đỏ cam và gửi nếu có
     const webhookUrl = process.env.ALERT_BI_51_WECOM_WEBHOOK;
 
-    // 1. Gửi tin nhắn thống kê WeCom
-    const wecomSuccess = await sendFlowStatsMessage(webhookUrl, pool);
-    if (!wecomSuccess) {
-      console.error(`[${new Date().toISOString()}] [JOB] ${jobName}: Gửi thống kê WeCom thất bại`);
-    }
+    // 1. Tạo file Excel report
+    const excelData = await getWarningData();
 
-    // 2. Tạo file Excel report
-    const excelData = await DataProcessor.getWarningData(pool);
-    const excelFilePath = await ExcelGenerator.generateExcel(excelData);
-    console.log(`[${new Date().toISOString()}] [JOB] ${jobName}: Đã tạo Excel tại ${excelFilePath}`);
+    if (excelData.length === 0) return;
+
+    const excelFilePath = await generateExcel(excelData);
+    console.log(`[${new Date().toISOString()}] [JOB] ${jobName}: Created excel file at ${excelFilePath}`);
+
+    // 2. Gửi tin nhắn thống kê WeCom
+    await sendFlowStatsMessage(webhookUrl || process.env.ALERT_BI_51_WECOM_WEBHOOK_TEST);
+    console.log(`[${new Date().toISOString()}] [JOB] ${jobName}: Sent red-oran flow stat message`);
 
     // 3. Gửi file Excel lên WeCom
-    await sendFileToWecom(webhookUrl, excelFilePath);
+    await sendFileToWecom(webhookUrl || process.env.ALERT_BI_51_WECOM_WEBHOOK_TEST, excelFilePath);
+    console.log(`[${new Date().toISOString()}] [JOB] ${jobName}: Sent excel file`);
 
     // 4. Gửi tin nhắn tag người liên quan cảnh báo
-    await sendWarningMentionMessage(webhookUrl, pool);
+    await sendWarningMentionMessage(webhookUrl || process.env.ALERT_BI_51_WECOM_WEBHOOK_TEST);
+
+    await fs.unlink(excelFilePath);
 
     console.log(`[${new Date().toISOString()}] [JOB] ${jobName} === COMPLETED ===`);
   } catch (err) {
